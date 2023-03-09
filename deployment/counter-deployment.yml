@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-deployment
+spec:
+  selector:
+    matchLabels:
+      app: counter
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: counter
+    spec:
+      initContainers:
+        - name: counter-app-init
+          image: busybox
+          command: ['wget', 'https://forge.univ-lyon1.fr/vladimir.ostapenco/counter-application/-/raw/main/index.php', '-O', '/var/www/html/index.php']
+          volumeMounts:
+            - name: counter-app
+              mountPath: /var/www/html
+      containers:
+        - name: counter-app
+          image: vladost/php:7.2-apache-redis
+          env:
+            - name: REDIS_HOST
+              value: redis-service
+          volumeMounts:
+            - name: counter-app
+              mountPath: /var/www/html
+            - name: redis-secret
+              mountPath: /credentials
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 4
+      volumes:
+        - name: counter-app
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: redis-secret
+          secret:
+            secretName: redis-secret
