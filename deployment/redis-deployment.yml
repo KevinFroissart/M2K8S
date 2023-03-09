@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      initContainers:
+        - name: redis-config-init
+          image: busybox
+          command: ["sh", "-c", "echo requirepass $PASSWORD > /etc/redis/redis.conf"]
+          volumeMounts:
+            - name: redis-config
+              mountPath: /etc/redis
+          env:
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+      containers:
+        - name: redis
+          image: redis
+          command: ["redis-server", "/etc/redis/redis.conf"]
+          volumeMounts:
+            - name: redis-config
+              mountPath: /etc/redis
+            - name: redis-data
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 4
+      volumes:
+        - name: redis-config
+          emptyDir:
+            sizeLimit: 5Mi
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-pvc
